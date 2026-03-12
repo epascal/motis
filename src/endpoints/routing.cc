@@ -1,7 +1,9 @@
 #include "motis/endpoints/routing.h"
 
-#include <cmath>
 #include <algorithm>
+#include <array>
+#include <atomic>
+#include <cmath>
 
 #include "boost/thread/tss.hpp"
 
@@ -24,6 +26,7 @@
 
 #include "nigiri/common/interval.h"
 #include "nigiri/location_match_mode.h"
+#include "nigiri/logging.h"
 #include "nigiri/routing/limits.h"
 #include "nigiri/routing/pareto_set.h"
 #include "nigiri/routing/query.h"
@@ -67,6 +70,17 @@ namespace motis::ep {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 boost::thread_specific_ptr<osr::bitvec<osr::node_idx_t>> blocked;
+std::atomic_uint64_t g_routing_request_seq{0U};
+thread_local std::uint64_t g_routing_request_id{0U};
+
+char const* algo_to_str(api::algorithmEnum const algo) {
+  switch (algo) {
+    case api::algorithmEnum::RAPTOR: return "RAPTOR";
+    case api::algorithmEnum::PONG: return "PONG";
+    case api::algorithmEnum::TB: return "TB";
+  }
+  return "UNKNOWN";
+}
 
 bool osr_loaded(routing const& r) {
   return r.w_ && r.l_ && r.pl_ && r.tt_ && r.loc_tree_ && r.matches_;
@@ -234,6 +248,7 @@ std::vector<n::routing::offset> get_offsets(
 
   auto const handle_mode = [&](api::ModeEnum const m) {
     UTL_START_TIMING(timer);
+    auto const offsets_before_mode = offsets.size();
 
     auto profile = to_profile(m, pedestrian_profile, elevation_costs);
 
@@ -257,6 +272,11 @@ std::vector<n::routing::offset> get_offsets(
     auto const near_stop_locations = utl::to_vec(
         near_stops,
         [&](n::location_idx_t const l) { return stop_to_osr_location(r, l); });
+    n::log(n::log_lvl::info, "motis.routing",
+           "[routing.prepare.mode.start] request_id={} direction={} mode={} "
+           "near_stops={} max_seconds={}",
+           g_routing_request_id, to_str(dir), fmt::streamed(m), near_stops.size(),
+           max.count());
 
     auto const route = [&](osr::search_profile const p,
                            osr::sharing_data const* sharing) {
@@ -274,6 +294,10 @@ std::vector<n::routing::offset> get_offsets(
 
     if (osr::is_rental_profile(profile)) {
       if (!gbfs_rd.has_data()) {
+        n::log(n::log_lvl::info, "motis.routing",
+               "[routing.prepare.rental.skip] request_id={} direction={} mode={} "
+               "reason=no_gbfs_data",
+               g_routing_request_id, to_str(dir), fmt::streamed(m));
         return;
       }
 
@@ -285,23 +309,45 @@ std::vector<n::routing::offset> get_offsets(
       gbfs_rd.data_->provider_rtree_.in_radius(
           pos.pos_, max_dist_to_departure,
           [&](auto const pi) { providers.insert(pi); });
+      auto const providers_in_radius = providers.size();
+      auto providers_considered = 0U;
+      auto providers_filtered = 0U;
+      auto products_visited = 0U;
+      auto products_matched = 0U;
+      auto products_routed = 0U;
+      UTL_START_TIMING(rental_mode_timer);
 
       for (auto const& pi : providers) {
         UTL_START_TIMING(provider_timer);
+        auto const offsets_before_provider = offsets.size();
+        auto provider_products_visited = 0U;
+        auto provider_products_matched = 0U;
+        auto provider_products_routed = 0U;
 
         auto const& provider = gbfs_rd.data_->providers_.at(pi);
+        ++providers_considered;
         if (!include_rental_provider(rental_providers, rental_provider_groups,
                                      provider.get())) {
+          ++providers_filtered;
+          n::log(n::log_lvl::info, "motis.routing",
+                 "[routing.prepare.rental.provider.skip] request_id={} "
+                 "direction={} mode={} provider={} reason=provider_filter",
+                 g_routing_request_id, to_str(dir), fmt::streamed(m),
+                 provider->id_);
           continue;
         }
         auto provider_rd = std::shared_ptr<gbfs::provider_routing_data>{};
         for (auto const& prod : provider->products_) {
+          ++products_visited;
+          ++provider_products_visited;
           if ((prod.return_constraint_ ==
                    gbfs::return_constraint::kRoundtripStation &&
                !ignore_rental_return_constraints) ||
               !gbfs::products_match(prod, form_factors, propulsion_types)) {
             continue;
           }
+          ++products_matched;
+          ++provider_products_matched;
           if (!provider_rd) {
             provider_rd = gbfs_rd.get_provider_routing_data(*provider);
           }
@@ -314,6 +360,8 @@ std::vector<n::routing::offset> get_offsets(
           auto const paths =
               route(gbfs::get_osr_profile(prod.form_factor_), &sharing);
           ignore_walk = true;
+          ++products_routed;
+          ++provider_products_routed;
           for (auto const [p, l] : utl::zip(paths, near_stops)) {
             if (p.has_value()) {
               offsets.emplace_back(l,
@@ -323,11 +371,30 @@ std::vector<n::routing::offset> get_offsets(
             }
           }
         }
+        n::log(n::log_lvl::info, "motis.routing",
+               "[routing.prepare.rental.provider.summary] request_id={} "
+               "direction={} mode={} provider={} products_total={} "
+               "products_visited={} products_matched={} products_routed={} "
+               "offsets_added={} provider_ms={}",
+               g_routing_request_id, to_str(dir), fmt::streamed(m),
+               provider->id_, provider->products_.size(), provider_products_visited,
+               provider_products_matched, provider_products_routed,
+               offsets.size() - offsets_before_provider,
+               UTL_GET_TIMING_MS(provider_timer));
 
         stats.emplace(fmt::format("prepare_{}_{}_{}", to_str(dir),
                                   fmt::streamed(m), provider->id_),
                       UTL_GET_TIMING_MS(provider_timer));
       }
+      n::log(n::log_lvl::info, "motis.routing",
+             "[routing.prepare.rental.summary] request_id={} direction={} "
+             "mode={} providers_in_radius={} providers_considered={} "
+             "providers_filtered={} products_visited={} products_matched={} "
+             "products_routed={} offsets_added={} rental_prepare_ms={}",
+             g_routing_request_id, to_str(dir), fmt::streamed(m),
+             providers_in_radius, providers_considered, providers_filtered,
+             products_visited, products_matched, products_routed,
+             offsets.size() - offsets_before_mode, UTL_GET_TIMING_MS(rental_mode_timer));
 
     } else {
       auto const paths = route(profile, nullptr);
@@ -343,6 +410,11 @@ std::vector<n::routing::offset> get_offsets(
 
     stats.emplace(fmt::format("prepare_{}_{}", to_str(dir), fmt::streamed(m)),
                   UTL_GET_TIMING_MS(timer));
+    n::log(n::log_lvl::info, "motis.routing",
+           "[routing.prepare.mode.summary] request_id={} direction={} mode={} "
+           "offsets_added={} mode_ms={}",
+           g_routing_request_id, to_str(dir), fmt::streamed(m),
+           offsets.size() - offsets_before_mode, UTL_GET_TIMING_MS(timer));
   };
 
   if (utl::find(modes, api::ModeEnum::RENTAL) != end(modes)) {
@@ -500,6 +572,11 @@ std::pair<std::vector<api::Itinerary>, n::duration_t> routing::route_direct(
   auto fastest_direct = kInfinityDuration;
   auto cache = street_routing_cache_t{};
   auto itineraries = std::vector<api::Itinerary>{};
+  n::log(n::log_lvl::info, "motis.routing",
+         "[routing.direct.start] request_id={} modes={} max_seconds={} "
+         "arrive_by={} has_gbfs_data={}",
+         g_routing_request_id, modes.size(), max.count(), arrive_by,
+         gbfs_rd.has_data());
 
   auto const route_with_profile = [&](output const& out) {
     auto itinerary = street_routing(
@@ -520,6 +597,7 @@ std::pair<std::vector<api::Itinerary>, n::duration_t> routing::route_direct(
   };
 
   for (auto const& m : modes) {
+    auto const itineraries_before_mode = itineraries.size();
     if (m == api::ModeEnum::FLEX) {
       utl::verify(tt_ && tags_ && fa_, "FLEX requires timetable");
       auto const routings = flex::get_flex_routings(
@@ -544,25 +622,47 @@ std::pair<std::vector<api::Itinerary>, n::duration_t> routing::route_direct(
       auto const max_dist = get_max_distance(osr::search_profile::kFoot, max);
       auto providers = hash_set<gbfs_provider_idx_t>{};
       auto routed = 0U;
+      auto providers_considered = 0U;
+      auto providers_filtered = 0U;
+      auto products_visited = 0U;
+      auto products_matched = 0U;
+      UTL_START_TIMING(rental_direct_timer);
       gbfs_rd.data_->provider_rtree_.in_radius(
           {from.lat_, from.lon_}, max_dist,
           [&](auto const pi) { providers.insert(pi); });
       for (auto const& pi : providers) {
         auto const& provider = gbfs_rd.data_->providers_.at(pi);
+        ++providers_considered;
         if (!include_rental_provider(rental_providers, rental_provider_groups,
                                      provider.get())) {
+          ++providers_filtered;
+          n::log(n::log_lvl::info, "motis.routing",
+                 "[routing.direct.rental.provider.skip] request_id={} provider={} "
+                 "reason=provider_filter",
+                 g_routing_request_id, provider->id_);
           continue;
         }
         for (auto const& prod : provider->products_) {
+          ++products_visited;
           if (!gbfs::products_match(prod, form_factors, propulsion_types)) {
             continue;
           }
+          ++products_matched;
           route_with_profile(gbfs::gbfs_output{
               *w_, gbfs_rd, gbfs::gbfs_products_ref{provider->idx_, prod.idx_},
               ignore_rental_return_constraints});
           ++routed;
         }
       }
+      n::log(n::log_lvl::info, "motis.routing",
+             "[routing.direct.rental.summary] request_id={} providers_in_radius={} "
+             "providers_considered={} providers_filtered={} products_visited={} "
+             "products_matched={} products_routed={} itineraries_added={} "
+             "rental_direct_ms={}",
+             g_routing_request_id, providers.size(), providers_considered,
+             providers_filtered, products_visited, products_matched, routed,
+             itineraries.size() - itineraries_before_mode,
+             UTL_GET_TIMING_MS(rental_direct_timer));
       // if we omitted the WALK routing but didn't have any rental providers
       // in the area, we need to do WALK routing now
       if (routed == 0U && utl::find(modes, api::ModeEnum::WALK) != end(modes)) {
@@ -571,8 +671,18 @@ std::pair<std::vector<api::Itinerary>, n::duration_t> routing::route_direct(
                             elevation_costs)});
       }
     }
+    n::log(n::log_lvl::info, "motis.routing",
+           "[routing.direct.mode.summary] request_id={} mode={} "
+           "itineraries_added={}",
+           g_routing_request_id, fmt::streamed(m),
+           itineraries.size() - itineraries_before_mode);
   }
   utl::erase_duplicates(itineraries);
+  n::log(n::log_lvl::info, "motis.routing",
+         "[routing.direct.summary] request_id={} itineraries={} "
+         "fastest_direct_seconds={}",
+         g_routing_request_id, itineraries.size(),
+         fastest_direct != kInfinityDuration ? to_seconds(fastest_direct) : -1);
   return {itineraries, fastest_direct != kInfinityDuration
                            ? std::chrono::round<n::duration_t>(
                                  fastest_direct * fastest_direct_factor)
@@ -660,6 +770,8 @@ std::vector<api::ModeEnum> deduplicate(std::vector<api::ModeEnum> m) {
 
 api::plan_response routing::operator()(boost::urls::url_view const& url) const {
   metrics_->routing_requests_.Increment();
+  UTL_START_TIMING(request_total);
+  g_routing_request_id = ++g_routing_request_seq;
 
   auto const query = api::plan_params{url.params()};
   utl::verify<net::bad_request_exception>(
@@ -687,6 +799,23 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
   auto const pre_transit_modes = deduplicate(query.preTransitModes_);
   auto const post_transit_modes = deduplicate(query.postTransitModes_);
   auto const direct_modes = deduplicate(query.directModes_);
+  n::log(
+      n::log_lvl::info, "motis.routing",
+      "[routing.start] request_id={} api_version={} arrive_by={} algorithm={} "
+      "num_itineraries={} max_itineraries={} timeout_seconds={} "
+      "search_window_seconds={} pre_modes={} post_modes={} direct_modes={} "
+      "transit_modes={} direct_rental_providers={} pre_rental_providers={} "
+      "post_rental_providers={}",
+      g_routing_request_id, api_version, query.arriveBy_,
+      algo_to_str(query.algorithm_), query.numItineraries_,
+      query.maxItineraries_.value_or(-1), query.timeout_.value_or(-1),
+      query.searchWindow_, pre_transit_modes.size(), post_transit_modes.size(),
+      direct_modes.size(), query.transitModes_.size(),
+      query.directRentalProviders_ ? query.directRentalProviders_->size() : 0U,
+      query.preTransitRentalProviders_ ? query.preTransitRentalProviders_->size()
+                                       : 0U,
+      query.postTransitRentalProviders_ ? query.postTransitRentalProviders_->size()
+                                        : 0U);
   auto const from = get_place(tt_, tags_, query.fromPlace_);
   auto const to = get_place(tt_, tags_, query.toPlace_);
   auto from_p = to_place(tt_, tags_, w_, pl_, matches_, ae_, tz_, lang, from);
@@ -766,6 +895,11 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
                 api_version)
           : std::pair{std::vector<api::Itinerary>{}, kInfinityDuration};
   UTL_STOP_TIMING(direct);
+  n::log(n::log_lvl::info, "motis.routing",
+         "[routing.direct.timing] request_id={} direct_ms={} "
+         "direct_itineraries={} fastest_direct_seconds={}",
+         g_routing_request_id, UTL_TIMING_MS(direct), direct.size(),
+         fastest_direct != kInfinityDuration ? to_seconds(fastest_direct) : -1);
 
   if (!query.transitModes_.empty() && fastest_direct > 5min &&
       max_transfers >= 0) {
@@ -805,6 +939,15 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
         with_ride_sharing_pre_transit || with_ride_sharing_post_transit ||
         with_ride_sharing_direct) {
       utl::verify(config_.has_prima(), "PRIMA not configured");
+      UTL_STOP_TIMING(request_total);
+      n::log(n::log_lvl::info, "motis.routing",
+             "[routing.delegate.odm] request_id={} odm_pre={} odm_post={} "
+             "odm_direct={} ridesharing_pre={} ridesharing_post={} "
+             "ridesharing_direct={} elapsed_ms={}",
+             g_routing_request_id, with_odm_pre_transit, with_odm_post_transit,
+             with_odm_direct, with_ride_sharing_pre_transit,
+             with_ride_sharing_post_transit, with_ride_sharing_direct,
+             UTL_TIMING_MS(request_total));
       return odm::meta_router{*this,
                               query,
                               pre_transit_modes,
@@ -918,6 +1061,12 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
         .fastest_slow_direct_factor_ = query.fastestSlowDirectFactor_};
     remove_slower_than_fastest_direct(q);
     UTL_STOP_TIMING(query_preparation);
+    n::log(n::log_lvl::info, "motis.routing",
+           "[routing.prepare.summary] request_id={} prepare_ms={} "
+           "n_start_offsets={} n_dest_offsets={} n_td_start_offsets={} "
+           "n_td_dest_offsets={}",
+           g_routing_request_id, UTL_TIMING_MS(query_preparation), q.start_.size(),
+           q.destination_.size(), q.td_start_.size(), q.td_dest_.size());
 
     if (tt_->locations_.footpaths_out_.at(q.prf_idx_).empty()) {
       q.prf_idx_ = 0U;
@@ -933,6 +1082,7 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
 
     auto r = n::routing::routing_result{};
     auto algorithm = query.algorithm_;
+    auto fallback_from_pong = false;
     auto search_state = n::routing::search_state{};
     while (true) {
       if (algorithm == api::algorithmEnum::PONG && query.timetableView_ &&
@@ -952,8 +1102,13 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
               query.timeout_.has_value() ? std::chrono::seconds{*query.timeout_}
                                          : max_timeout);
         } catch (std::exception const& e) {
-          std::cout << "PONG EXCEPTION: " << e.what() << "\n";
+          n::log(n::log_lvl::info, "motis.routing",
+                 "[routing.search.fallback] request_id={} from={} to={} "
+                 "reason=exception error=\"{}\"",
+                 g_routing_request_id, algo_to_str(api::algorithmEnum::PONG),
+                 algo_to_str(api::algorithmEnum::RAPTOR), e.what());
           algorithm = api::algorithmEnum::RAPTOR;
+          fallback_from_pong = true;
           continue;
         }
       } else if (algorithm == api::algorithmEnum::RAPTOR || tbd_ == nullptr ||
@@ -975,6 +1130,13 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
       }
       break;
     }
+    n::log(n::log_lvl::info, "motis.routing",
+           "[routing.search.summary] request_id={} requested_algorithm={} "
+           "executed_algorithm={} fallback_from_pong={} search_ms={} "
+           "journeys_found={}",
+           g_routing_request_id, algo_to_str(query.algorithm_),
+           algo_to_str(algorithm), fallback_from_pong,
+           r.search_stats_.execute_time_.count(), r.journeys_->size());
 
     metrics_->routing_journeys_found_.Increment(
         static_cast<double>(r.journeys_->size()));
@@ -988,14 +1150,64 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
     }
 
     auto journeys = r.journeys_->els_;
+    auto const journeys_before_shrink = journeys.size();
+    UTL_START_TIMING(postprocess);
     auto search_interval = r.interval_;
     if (query.maxItineraries_.has_value()) {
       search_interval = shrink(start_time.extend_interval_earlier_,
                                static_cast<std::size_t>(*query.maxItineraries_),
                                r.interval_, journeys);
     }
+    auto const journeys_after_shrink = journeys.size();
 
     direct_filter(direct, journeys);
+    auto const journeys_after_direct_filter = journeys.size();
+    UTL_START_TIMING(serialize);
+    auto itineraries = utl::to_vec(
+        journeys,
+        [&, cache = street_routing_cache_t{}](auto&& j) mutable {
+          return journey_to_response(
+              w_, l_, pl_, *tt_, *tags_, fa_, e, rtt, matches_, elevations_,
+              shapes_, gbfs_rd, ae_, tz_, j, start, dest, cache, blocked.get(),
+              query.requireCarTransport_ && query.useRoutedTransfers_, osr_params,
+              query.pedestrianProfile_, query.elevationCosts_,
+              query.joinInterlinedLegs_, query.detailedTransfers_,
+              query.withFares_, query.withScheduledSkippedStops_,
+              config_.timetable_.value().max_matching_distance_,
+              query.maxMatchingDistance_, api_version,
+              query.ignorePreTransitRentalReturnConstraints_,
+              query.ignorePostTransitRentalReturnConstraints_, query.language_);
+        });
+    UTL_STOP_TIMING(serialize);
+    UTL_STOP_TIMING(postprocess);
+    UTL_STOP_TIMING(request_total);
+    auto phases = std::array<std::pair<std::string_view, std::uint64_t>, 4>{
+        {{"direct", UTL_TIMING_MS(direct)},
+         {"prepare", UTL_TIMING_MS(query_preparation)},
+         {"search", static_cast<std::uint64_t>(r.search_stats_.execute_time_.count())},
+         {"postprocess", UTL_TIMING_MS(postprocess)}}};
+    std::sort(begin(phases), end(phases),
+              [](auto const& a, auto const& b) { return a.second > b.second; });
+    n::log(n::log_lvl::info, "motis.routing",
+           "[routing.postprocess.summary] request_id={} postprocess_ms={} "
+           "serialization_ms={} journeys_before_shrink={} "
+           "journeys_after_shrink={} journeys_after_direct_filter={} "
+           "itineraries_serialized={}",
+           g_routing_request_id, UTL_TIMING_MS(postprocess),
+           UTL_TIMING_MS(serialize), journeys_before_shrink, journeys_after_shrink,
+           journeys_after_direct_filter, itineraries.size());
+    n::log(n::log_lvl::info, "motis.routing",
+           "[routing.summary] request_id={} total_ms={} direct_ms={} "
+           "prepare_ms={} search_ms={} postprocess_ms={} top1={}={} top2={}={} "
+           "top3={}={} direct_results={} transit_results={} "
+           "n_start_offsets={} n_dest_offsets={} n_td_start_offsets={} "
+           "n_td_dest_offsets={}",
+           g_routing_request_id, UTL_TIMING_MS(request_total), UTL_TIMING_MS(direct),
+           UTL_TIMING_MS(query_preparation), r.search_stats_.execute_time_.count(),
+           UTL_TIMING_MS(postprocess), phases[0].first, phases[0].second,
+           phases[1].first, phases[1].second, phases[2].first, phases[2].second,
+           direct.size(), itineraries.size(), q.start_.size(), q.destination_.size(),
+           q.td_start_.size(), q.td_dest_.size());
 
     return {
         .debugOutput_ =
@@ -1004,23 +1216,7 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
         .from_ = from_p,
         .to_ = to_p,
         .direct_ = std::move(direct),
-        .itineraries_ = utl::to_vec(
-            journeys,
-            [&, cache = street_routing_cache_t{}](auto&& j) mutable {
-              return journey_to_response(
-                  w_, l_, pl_, *tt_, *tags_, fa_, e, rtt, matches_, elevations_,
-                  shapes_, gbfs_rd, ae_, tz_, j, start, dest, cache,
-                  blocked.get(),
-                  query.requireCarTransport_ && query.useRoutedTransfers_,
-                  osr_params, query.pedestrianProfile_, query.elevationCosts_,
-                  query.joinInterlinedLegs_, query.detailedTransfers_,
-                  query.withFares_, query.withScheduledSkippedStops_,
-                  config_.timetable_.value().max_matching_distance_,
-                  query.maxMatchingDistance_, api_version,
-                  query.ignorePreTransitRentalReturnConstraints_,
-                  query.ignorePostTransitRentalReturnConstraints_,
-                  query.language_);
-            }),
+        .itineraries_ = std::move(itineraries),
         .previousPageCursor_ =
             fmt::format("EARLIER|{}", to_seconds(search_interval.from_)),
         .nextPageCursor_ =
@@ -1028,6 +1224,12 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
     };
   }
 
+  UTL_STOP_TIMING(request_total);
+  n::log(n::log_lvl::info, "motis.routing",
+         "[routing.summary.no_transit] request_id={} total_ms={} "
+         "reason=transit_not_executed direct_results={} fastest_direct_seconds={}",
+         g_routing_request_id, UTL_TIMING_MS(request_total), direct.size(),
+         fastest_direct != kInfinityDuration ? to_seconds(fastest_direct) : -1);
   return {
       .from_ = to_place(tt_, tags_, w_, pl_, matches_, ae_, tz_, lang, from),
       .to_ = to_place(tt_, tags_, w_, pl_, matches_, ae_, tz_, lang, to),
