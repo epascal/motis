@@ -18,7 +18,8 @@
 		possibleModes,
 		possibleMaxTransitTime,
 		ignoreRentalReturnConstraints = $bindable(),
-		providerGroups = $bindable()
+		providerGroups = $bindable(),
+		fastProviderFilter = $bindable()
 	}: {
 		label: string;
 		disabled?: boolean;
@@ -28,6 +29,7 @@
 		possibleMaxTransitTime: number[];
 		ignoreRentalReturnConstraints: boolean;
 		providerGroups: string[];
+		fastProviderFilter: boolean;
 	} = $props();
 
 	type TranslationKey = keyof typeof t;
@@ -194,6 +196,14 @@
 			}
 			label={t.considerRentalReturnConstraints}
 			id="ignorePreTransitRentalReturnConstraints"
+		/>
+	</div>
+	<div class={cn('col-span-2 col-start-2', showRental || 'hidden')}>
+		<Switch
+			{disabled}
+			bind:checked={fastProviderFilter}
+			label="Fast rental provider filter (less precise)"
+			id="fastRentalProviderFilter"
 		/>
 	</div>
 </div>

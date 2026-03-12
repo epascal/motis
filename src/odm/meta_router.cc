@@ -140,6 +140,12 @@ meta_router::meta_router(ep::routing const& r,
       dest_rental_provider_groups_{
           query_.arriveBy_ ? query_.preTransitRentalProviderGroups_
                            : query_.postTransitRentalProviderGroups_},
+      start_fast_provider_filter_{
+          query_.arriveBy_ ? query_.postTransitRentalFastProviderFilter_
+                           : query_.preTransitRentalFastProviderFilter_},
+      dest_fast_provider_filter_{
+          query_.arriveBy_ ? query_.preTransitRentalFastProviderFilter_
+                           : query_.postTransitRentalFastProviderFilter_},
       start_ignore_rental_return_constraints_{
           query.arriveBy_ ? query_.ignorePreTransitRentalReturnConstraints_
                           : query_.ignorePostTransitRentalReturnConstraints_},
@@ -367,6 +373,7 @@ api::plan_response meta_router::run() {
                            : osr::direction::kForward,
           start_modes_, start_form_factors_, start_propulsion_types_,
           start_rental_providers_, start_rental_provider_groups_,
+          start_fast_provider_filter_,
           start_ignore_rental_return_constraints_, params,
           query_.pedestrianProfile_, query_.elevationCosts_,
           query_.arriveBy_ ? post_transit_time : pre_transit_time,
@@ -377,6 +384,7 @@ api::plan_response meta_router::run() {
                            : osr::direction::kBackward,
           dest_modes_, dest_form_factors_, dest_propulsion_types_,
           dest_rental_providers_, dest_rental_provider_groups_,
+          dest_fast_provider_filter_,
           dest_ignore_rental_return_constraints_, params,
           query_.pedestrianProfile_, query_.elevationCosts_,
           query_.arriveBy_ ? pre_transit_time : post_transit_time,

@@ -92,7 +92,7 @@ api::Reachable one_to_all::operator()(boost::urls::url_view const& url) const {
       .start_match_mode_ = get_match_mode(r, one),
       .start_ = r.get_offsets(
           nullptr, one, one_dir, one_modes, std::nullopt, std::nullopt,
-          std::nullopt, std::nullopt, false, osr_params,
+          std::nullopt, std::nullopt, false, false, osr_params,
           query.pedestrianProfile_, query.elevationCosts_, one_max_time,
           query.maxMatchingDistance_, gbfs_rd, prepare_stats),
       .td_start_ = r.get_td_offsets(

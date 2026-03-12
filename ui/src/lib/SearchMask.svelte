@@ -40,6 +40,9 @@
 		ignorePreTransitRentalReturnConstraints = $bindable(),
 		ignorePostTransitRentalReturnConstraints = $bindable(),
 		ignoreDirectRentalReturnConstraints = $bindable(),
+		preTransitRentalFastProviderFilter = $bindable(),
+		postTransitRentalFastProviderFilter = $bindable(),
+		directRentalFastProviderFilter = $bindable(),
 		preTransitProviderGroups = $bindable(),
 		postTransitProviderGroups = $bindable(),
 		directProviderGroups = $bindable(),
@@ -70,6 +73,9 @@
 		ignorePreTransitRentalReturnConstraints: boolean;
 		ignorePostTransitRentalReturnConstraints: boolean;
 		ignoreDirectRentalReturnConstraints: boolean;
+		preTransitRentalFastProviderFilter: boolean;
+		postTransitRentalFastProviderFilter: boolean;
+		directRentalFastProviderFilter: boolean;
 		preTransitProviderGroups: string[];
 		postTransitProviderGroups: string[];
 		directProviderGroups: string[];
@@ -184,6 +190,9 @@
 			bind:ignorePreTransitRentalReturnConstraints
 			bind:ignorePostTransitRentalReturnConstraints
 			bind:ignoreDirectRentalReturnConstraints
+			bind:preTransitRentalFastProviderFilter
+			bind:postTransitRentalFastProviderFilter
+			bind:directRentalFastProviderFilter
 			bind:preTransitProviderGroups
 			bind:postTransitProviderGroups
 			bind:directProviderGroups

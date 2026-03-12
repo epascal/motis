@@ -492,6 +492,20 @@ paths:
               type: string
           explode: false
 
+        - name: directRentalFastProviderFilter
+          in: query
+          required: false
+          description: |
+            Experimental. Expect unannounced breaking changes (without version bumps).
+            
+            Optional. Default is `false`. Only applies to direct connections.
+            
+            If set to `true`, uses a faster rental provider preselection strategy.
+            Trade-off: results may be less accurate and can miss some valid providers/routes in edge cases.
+          schema:
+            type: boolean
+            default: false
+
         - name: preTransitRentalProviders
           in: query
           required: false
@@ -524,6 +538,20 @@ paths:
               type: string
           explode: false
 
+        - name: preTransitRentalFastProviderFilter
+          in: query
+          required: false
+          description: |
+            Experimental. Expect unannounced breaking changes (without version bumps).
+            
+            Optional. Default is `false`. Only applies if the `from` place is a coordinate (not a transit stop). Does not apply to direct connections (see `directRentalFastProviderFilter`).
+            
+            If set to `true`, uses a faster rental provider preselection strategy.
+            Trade-off: results may be less accurate and can miss some valid providers/routes in edge cases.
+          schema:
+            type: boolean
+            default: false
+
         - name: postTransitRentalProviders
           in: query
           required: false
@@ -555,6 +583,20 @@ paths:
             items:
               type: string
           explode: false
+
+        - name: postTransitRentalFastProviderFilter
+          in: query
+          required: false
+          description: |
+            Experimental. Expect unannounced breaking changes (without version bumps).
+            
+            Optional. Default is `false`. Only applies if the `to` place is a coordinate (not a transit stop). Does not apply to direct connections (see `directRentalFastProviderFilter`).
+            
+            If set to `true`, uses a faster rental provider preselection strategy.
+            Trade-off: results may be less accurate and can miss some valid providers/routes in edge cases.
+          schema:
+            type: boolean
+            default: false
 
         - name: ignoreDirectRentalReturnConstraints
           in: query

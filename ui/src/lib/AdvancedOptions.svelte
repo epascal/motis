@@ -42,6 +42,9 @@
 		ignorePreTransitRentalReturnConstraints = $bindable(),
 		ignorePostTransitRentalReturnConstraints = $bindable(),
 		ignoreDirectRentalReturnConstraints = $bindable(),
+		preTransitRentalFastProviderFilter = $bindable(),
+		postTransitRentalFastProviderFilter = $bindable(),
+		directRentalFastProviderFilter = $bindable(),
 		preTransitProviderGroups = $bindable(),
 		postTransitProviderGroups = $bindable(),
 		directProviderGroups = $bindable(),
@@ -70,6 +73,9 @@
 		ignorePreTransitRentalReturnConstraints: boolean;
 		ignorePostTransitRentalReturnConstraints: boolean;
 		ignoreDirectRentalReturnConstraints: boolean | undefined;
+		preTransitRentalFastProviderFilter: boolean;
+		postTransitRentalFastProviderFilter: boolean;
+		directRentalFastProviderFilter: boolean;
 		preTransitProviderGroups: string[];
 		postTransitProviderGroups: string[];
 		directProviderGroups: string[];
@@ -221,6 +227,7 @@
 				possibleMaxTransitTime={possiblePrePostDurations}
 				bind:ignoreRentalReturnConstraints={ignorePreTransitRentalReturnConstraints}
 				bind:providerGroups={preTransitProviderGroups}
+				bind:fastProviderFilter={preTransitRentalFastProviderFilter}
 			></StreetModes>
 
 			<!-- Last mile -->
@@ -233,6 +240,7 @@
 				possibleMaxTransitTime={possiblePrePostDurations}
 				bind:ignoreRentalReturnConstraints={ignorePostTransitRentalReturnConstraints}
 				bind:providerGroups={postTransitProviderGroups}
+				bind:fastProviderFilter={postTransitRentalFastProviderFilter}
 			></StreetModes>
 
 			<!-- Direct -->
@@ -246,6 +254,7 @@
 					possibleMaxTransitTime={possibleDirectDurations}
 					bind:ignoreRentalReturnConstraints={ignoreDirectRentalReturnConstraints}
 					bind:providerGroups={directProviderGroups}
+					bind:fastProviderFilter={directRentalFastProviderFilter}
 				></StreetModes>
 			{/if}
 		</div>

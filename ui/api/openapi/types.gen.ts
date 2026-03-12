@@ -1862,6 +1862,16 @@ export type PlanData = {
         /**
          * Experimental. Expect unannounced breaking changes (without version bumps).
          *
+         * Optional. Default is `false`. Only applies to direct connections.
+         *
+         * If set to `true`, uses a faster rental provider preselection strategy.
+         * Trade-off: results may be less accurate and can miss some valid providers/routes in edge cases.
+         *
+         */
+        directRentalFastProviderFilter?: boolean;
+        /**
+         * Experimental. Expect unannounced breaking changes (without version bumps).
+         *
          * Optional. Only applies to direct connections.
          *
          * A list of vehicle type form factors that are allowed to be used for direct connections.
@@ -2125,6 +2135,16 @@ export type PlanData = {
         /**
          * Experimental. Expect unannounced breaking changes (without version bumps).
          *
+         * Optional. Default is `false`. Only applies if the `to` place is a coordinate (not a transit stop). Does not apply to direct connections (see `directRentalFastProviderFilter`).
+         *
+         * If set to `true`, uses a faster rental provider preselection strategy.
+         * Trade-off: results may be less accurate and can miss some valid providers/routes in edge cases.
+         *
+         */
+        postTransitRentalFastProviderFilter?: boolean;
+        /**
+         * Experimental. Expect unannounced breaking changes (without version bumps).
+         *
          * Optional. Only applies if the `to` place is a coordinate (not a transit stop). Does not apply to direct connections (see `directRentalFormFactors`).
          *
          * A list of vehicle type form factors that are allowed to be used from the last transit stop to the `to` coordinate.
@@ -2171,6 +2191,16 @@ export type PlanData = {
          *
          */
         preTransitModes?: Array<Mode>;
+        /**
+         * Experimental. Expect unannounced breaking changes (without version bumps).
+         *
+         * Optional. Default is `false`. Only applies if the `from` place is a coordinate (not a transit stop). Does not apply to direct connections (see `directRentalFastProviderFilter`).
+         *
+         * If set to `true`, uses a faster rental provider preselection strategy.
+         * Trade-off: results may be less accurate and can miss some valid providers/routes in edge cases.
+         *
+         */
+        preTransitRentalFastProviderFilter?: boolean;
         /**
          * Experimental. Expect unannounced breaking changes (without version bumps).
          *

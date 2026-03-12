@@ -300,6 +300,15 @@
 	let ignoreDirectRentalReturnConstraints = $state(
 		urlParams?.get('ignoreDirectRentalReturnConstraints') == 'true'
 	);
+	let preTransitRentalFastProviderFilter = $state(
+		urlParams?.get('preTransitRentalFastProviderFilter') == 'true'
+	);
+	let postTransitRentalFastProviderFilter = $state(
+		urlParams?.get('postTransitRentalFastProviderFilter') == 'true'
+	);
+	let directRentalFastProviderFilter = $state(
+		urlParams?.get('directRentalFastProviderFilter') == 'true'
+	);
 	let slowDirect = $state(urlParams?.get('slowDirect') == 'true');
 
 	let isochronesData = $state<IsochronesPos[]>([]);
@@ -382,6 +391,9 @@
 						ignorePreTransitRentalReturnConstraints,
 						ignorePostTransitRentalReturnConstraints,
 						ignoreDirectRentalReturnConstraints,
+						preTransitRentalFastProviderFilter,
+						postTransitRentalFastProviderFilter,
+						directRentalFastProviderFilter,
 						algorithm,
 						via: via ? via.map((v) => v.match?.id) : undefined,
 						viaMinimumStay
@@ -411,7 +423,9 @@
 						elevationCosts,
 						maxMatchingDistance: pedestrianProfile == 'WHEELCHAIR' ? 8 : 250,
 						ignorePreTransitRentalReturnConstraints,
-						ignorePostTransitRentalReturnConstraints
+						ignorePostTransitRentalReturnConstraints,
+						preTransitRentalFastProviderFilter,
+						postTransitRentalFastProviderFilter
 					}
 				} as OneToAllData)
 			: undefined
@@ -661,6 +675,9 @@
 						bind:ignorePreTransitRentalReturnConstraints
 						bind:ignorePostTransitRentalReturnConstraints
 						bind:ignoreDirectRentalReturnConstraints
+						bind:preTransitRentalFastProviderFilter
+						bind:postTransitRentalFastProviderFilter
+						bind:directRentalFastProviderFilter
 						bind:preTransitProviderGroups
 						bind:postTransitProviderGroups
 						bind:directProviderGroups
@@ -698,6 +715,8 @@
 						bind:elevationCosts
 						bind:ignorePreTransitRentalReturnConstraints
 						bind:ignorePostTransitRentalReturnConstraints
+						bind:preTransitRentalFastProviderFilter
+						bind:postTransitRentalFastProviderFilter
 						bind:options={isochronesOptions}
 						bind:preTransitProviderGroups
 						bind:postTransitProviderGroups

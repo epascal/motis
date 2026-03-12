@@ -58,7 +58,7 @@ n::duration_t init_direct(std::vector<direct_ride>& rides,
                           unsigned api_version) {
   auto [_, direct_duration] = r.route_direct(
       e, gbfs, {}, from_p, to_p, {api::ModeEnum::CAR}, std::nullopt,
-      std::nullopt, std::nullopt, std::nullopt, false, intvl.from_, false,
+      std::nullopt, std::nullopt, false, false, intvl.from_, false,
       get_osr_parameters(query), query.pedestrianProfile_,
       query.elevationCosts_, kODMMaxDuration, query.maxMatchingDistance_,
       kODMDirectFactor, api_version);
@@ -112,7 +112,7 @@ void init_pt(std::vector<n::routing::offset>& offsets,
              std::chrono::seconds const max) {
   auto stats = std::map<std::string, std::uint64_t>{};
   offsets = r.get_offsets(rtt, l, dir, {api::ModeEnum::CAR}, std::nullopt,
-                          std::nullopt, std::nullopt, std::nullopt, false,
+                          std::nullopt, std::nullopt, false, false,
                           get_osr_parameters(query), query.pedestrianProfile_,
                           query.elevationCosts_, max,
                           query.maxMatchingDistance_, gbfs_rd, stats);

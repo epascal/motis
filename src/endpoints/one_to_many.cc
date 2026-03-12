@@ -130,9 +130,9 @@ std::vector<api::ParetoSet> transit_durations(
       .start_match_mode_ = get_match_mode(r, one),
       .start_ = r.get_offsets(nullptr, one, one_dir, one_modes, std::nullopt,
                               std::nullopt, std::nullopt, std::nullopt, false,
-                              osr_params, pedestrian_profile, elevation_costs,
-                              one_max_seconds, max_matching_distance, gbfs_rd,
-                              prepare_stats),
+                              false, osr_params, pedestrian_profile,
+                              elevation_costs, one_max_seconds,
+                              max_matching_distance, gbfs_rd, prepare_stats),
       .td_start_ = r.get_td_offsets(nullptr, nullptr, one, one_dir, one_modes,
                                     osr_params, pedestrian_profile,
                                     elevation_costs, max_matching_distance,
@@ -192,7 +192,7 @@ std::vector<api::ParetoSet> transit_durations(
         nullptr, l,
         arrive_by ? osr::direction::kForward : osr::direction::kBackward,
         many_modes, std::nullopt, std::nullopt, std::nullopt, std::nullopt,
-        false, osr_params, pedestrian_profile, elevation_costs,
+        false, false, osr_params, pedestrian_profile, elevation_costs,
         many_max_seconds, max_matching_distance, gbfs_rd, prepare_stats);
 
     for (auto const offset : offsets) {

@@ -41,6 +41,8 @@
 		elevationCosts = $bindable(),
 		ignorePreTransitRentalReturnConstraints = $bindable(),
 		ignorePostTransitRentalReturnConstraints = $bindable(),
+		preTransitRentalFastProviderFilter = $bindable(),
+		postTransitRentalFastProviderFilter = $bindable(),
 		options = $bindable(),
 		preTransitProviderGroups = $bindable(),
 		postTransitProviderGroups = $bindable(),
@@ -66,6 +68,8 @@
 		elevationCosts: ElevationCosts;
 		ignorePreTransitRentalReturnConstraints: boolean;
 		ignorePostTransitRentalReturnConstraints: boolean;
+		preTransitRentalFastProviderFilter: boolean;
+		postTransitRentalFastProviderFilter: boolean;
 		options: IsochronesOptions;
 		preTransitProviderGroups: string[];
 		postTransitProviderGroups: string[];
@@ -225,6 +229,9 @@
 			bind:elevationCosts
 			bind:ignorePreTransitRentalReturnConstraints
 			bind:ignorePostTransitRentalReturnConstraints
+			bind:preTransitRentalFastProviderFilter
+			bind:postTransitRentalFastProviderFilter
+			directRentalFastProviderFilter={false}
 			ignoreDirectRentalReturnConstraints={undefined}
 			{additionalComponents}
 			bind:preTransitProviderGroups
