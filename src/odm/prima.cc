@@ -75,7 +75,8 @@ n::duration_t init_direct(std::vector<direct_ride>& rides,
       auto const floored_5_min = (mins_since_midnight.count() / 5) * 5;
       auto const start_time = midnight + std::chrono::minutes(floored_5_min);
       for (auto arr = start_time; intvl.contains(arr); arr -= step) {
-        rides.push_back({.dep_ = arr - direct_duration, .arr_ = arr});
+        rides.push_back(
+            direct_ride{.dep_ = arr - direct_duration, .arr_ = arr});
       }
     } else {
       auto const base_start = intvl.from_;
@@ -89,7 +90,7 @@ n::duration_t init_direct(std::vector<direct_ride>& rides,
       auto const start_time_for_depart =
           midnight_start + std::chrono::minutes(ceiled_5_min_start);
       for (auto dep = start_time_for_depart; intvl.contains(dep); dep += step) {
-        rides.push_back({.dep_ = dep, .arr_ = dep + direct_duration});
+        rides.push_back(direct_ride{.dep_ = dep, .arr_ = dep + direct_duration});
       }
     }
   }

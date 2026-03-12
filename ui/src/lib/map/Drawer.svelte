@@ -86,6 +86,12 @@
 		}
 		fromHandle = false;
 	};
+
+	const toggleExpanded = () => {
+		showMap = true;
+		ref!.style.transform = `translateY(${(expanded ? window.innerHeight : 0) * maxTranslate}px)`;
+		expanded = !expanded;
+	};
 </script>
 
 <div
@@ -101,10 +107,15 @@
 >
 	<div
 		class="mx-auto my-5 relative before:content-[''] before:absolute before:inset-[-20px] before:inset-x-[-50vw] flex items-center justify-center"
-		onclick={() => {
-			showMap = true;
-			ref!.style.transform = `translateY(${(expanded ? window.innerHeight : 0) * maxTranslate}px)`;
-			expanded = !expanded;
+		role="button"
+		tabindex="0"
+		aria-label="Toggle map panel"
+		onclick={toggleExpanded}
+		onkeydown={(e: KeyboardEvent) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				toggleExpanded();
+			}
 		}}
 	>
 		<div

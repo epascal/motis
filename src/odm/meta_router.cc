@@ -273,6 +273,16 @@ api::plan_response meta_router::run() {
   utl::verify(r_.tt_ != nullptr && r_.tags_ != nullptr,
               "mode=TRANSIT requires timetable to be loaded");
   auto prepare_stats = motis::ep::stats_map_t{};
+  prepare_stats.emplace("query_preTransitRentalFastProviderFilter",
+                        query_.preTransitRentalFastProviderFilter_ ? 1U : 0U);
+  prepare_stats.emplace("query_postTransitRentalFastProviderFilter",
+                        query_.postTransitRentalFastProviderFilter_ ? 1U : 0U);
+  prepare_stats.emplace("query_directRentalFastProviderFilter",
+                        query_.directRentalFastProviderFilter_ ? 1U : 0U);
+  prepare_stats.emplace("effective_startRentalFastProviderFilter",
+                        start_fast_provider_filter_ ? 1U : 0U);
+  prepare_stats.emplace("effective_destRentalFastProviderFilter",
+                        dest_fast_provider_filter_ ? 1U : 0U);
   auto const start_intvl = std::visit(
       utl::overloaded{[](n::interval<n::unixtime_t> const i) { return i; },
                       [](n::unixtime_t const t) {
@@ -500,7 +510,12 @@ api::plan_response meta_router::run() {
         to_seconds(taxi_journeys.begin()->arrival_time() -
                    taxi_journeys.begin()->departure_time())));
   }
+  auto debug_output = prepare_stats;
+  auto const pt_search_stats = pt_result.search_stats_.to_map();
+  debug_output.insert(begin(pt_search_stats), end(pt_search_stats));
+  debug_output.insert(begin(pt_result.algo_stats_), end(pt_result.algo_stats_));
   return {
+      .debugOutput_ = std::move(debug_output),
       .from_ = from_place_,
       .to_ = to_place_,
       .direct_ = std::move(direct_),

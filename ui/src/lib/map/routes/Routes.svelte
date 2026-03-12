@@ -12,7 +12,6 @@
 	import maplibregl from 'maplibre-gl';
 	import type { FeatureCollection, LineString, Point } from 'geojson';
 	import {
-		routes,
 		type Leg,
 		type RouteInfo,
 		type RoutePolyline
@@ -35,7 +34,19 @@
 
 	const FETCH_PADDING_RATIO = 0.5;
 
-	type RoutesPayload = Awaited<ReturnType<typeof routes>>['data'];
+	type RouteStop = {
+		stopId?: string;
+		name: string;
+		lat: number;
+		lon: number;
+	};
+
+	type RoutesPayload = {
+		routes: RouteInfo[];
+		polylines: RoutePolyline[];
+		stops: RouteStop[];
+		zoomFiltered: boolean;
+	};
 
 	let routesData = $state<RoutesPayload | null>(null);
 	let loadedBounds = $state<maplibregl.LngLatBounds | null>(null);
@@ -113,7 +124,13 @@
 			const max = lngLatToStr(requestBounds.getNorthWest());
 			const min = lngLatToStr(requestBounds.getSouthEast());
 			console.debug('[Routes] requesting routes', { min, max, zoom });
-			return { ...(await routes({ query: { max, min, zoom } })), requestBounds };
+			return {
+				...(await client.get<RoutesPayload, unknown>({
+					url: '/api/experimental/map/routes',
+					query: { max, min, zoom }
+				})),
+				requestBounds
+			};
 		};
 
 		let { data, error, response, requestBounds } = await requestWithBounds(expandedBounds);

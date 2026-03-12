@@ -861,6 +861,16 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
 
     UTL_START_TIMING(query_preparation);
     auto prepare_stats = std::map<std::string, std::uint64_t>{};
+    prepare_stats.emplace("query_preTransitRentalFastProviderFilter",
+                          query.preTransitRentalFastProviderFilter_ ? 1U : 0U);
+    prepare_stats.emplace("query_postTransitRentalFastProviderFilter",
+                          query.postTransitRentalFastProviderFilter_ ? 1U : 0U);
+    prepare_stats.emplace("query_directRentalFastProviderFilter",
+                          query.directRentalFastProviderFilter_ ? 1U : 0U);
+    prepare_stats.emplace("effective_startRentalFastProviderFilter",
+                          start_fast_provider_filter ? 1U : 0U);
+    prepare_stats.emplace("effective_destRentalFastProviderFilter",
+                          dest_fast_provider_filter ? 1U : 0U);
     auto q = n::routing::query{
         .start_time_ = start_time.start_time_,
         .start_match_mode_ = get_match_mode(*this, start),

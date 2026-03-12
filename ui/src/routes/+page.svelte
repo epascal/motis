@@ -60,6 +60,8 @@
 	import { LEVEL_MIN_ZOOM } from '$lib/constants';
 	import StopGeoJSON from '$lib/map/stops/StopsGeoJSON.svelte';
 	import RailViz from '$lib/RailViz.svelte';
+	import { getDefaultOptions, loadOptions, saveOptions } from '$lib/storage/optionsStorage';
+	import type { SavedOptions } from '$lib/storage/types';
 
 	const urlParams = browser ? new URLSearchParams(window.location.search) : undefined;
 
