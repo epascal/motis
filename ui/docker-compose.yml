@@ -5,8 +5,11 @@ services:
     image: motis-ui:latest
     ports:
       - "80:80"
+    # MapTiler: set MAPTILER_API_KEY via ui/.env (see .env.example) or export before `docker compose up`.
     environment:
       - MOTIS_BACKEND_URL=http://192.168.0.20:8090
+      - MAPTILER_API_KEY=${MAPTILER_API_KEY}
+      - MAPTILER_STYLE=${MAPTILER_STYLE:-openstreetmap}
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
       interval: 30s
