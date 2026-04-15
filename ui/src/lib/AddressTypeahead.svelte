@@ -37,18 +37,39 @@
 		return area?.name ?? '';
 	};
 
+	/**
+	 * Builds the secondary line (locality, country) for typeahead labels.
+	 * Do not use `adminLevel <= 8`: that includes the country (admin_level 2), so with
+	 * some area orderings the UI showed "France" instead of the municipality.
+	 */
 	const getRegion = (m: Match | undefined): string => {
 		if (m === undefined) {
 			return '';
 		}
-		const reversedAreas = [...(m.areas ?? [])].reverse();
-		const city = reversedAreas.find((entry) => entry.adminLevel <= 8)?.name ?? '';
-		const country = getAreaNameByAdminLevel(reversedAreas, 2);
-		if (city !== '' && country !== '') {
-			return `${city}, ${country}`;
+		const areas = m.areas ?? [];
+		const country = getAreaNameByAdminLevel(areas, 2);
+
+		let locality = areas.find((entry) => entry.default === true)?.name ?? '';
+
+		if (locality === '' || locality === country) {
+			const subnational = areas.filter(
+				(entry) => entry.adminLevel > 2 && entry.adminLevel <= 10
+			);
+			if (subnational.length > 0) {
+				const finest = subnational.reduce((a, b) =>
+					a.adminLevel > b.adminLevel ? a : b
+				);
+				if (finest.name !== country) {
+					locality = finest.name;
+				}
+			}
 		}
-		if (city !== '') {
-			return city;
+
+		if (locality !== '' && country !== '' && locality !== country) {
+			return `${locality}, ${country}`;
+		}
+		if (locality !== '') {
+			return locality;
 		}
 		return country;
 	};
