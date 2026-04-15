@@ -14,6 +14,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && chown motis:motis /data \
     && chmod +x /motis
 
+ARG OCI_VENDOR=Flowride
+ARG OCI_SOURCE=https://github.com/flowride/motis
+ARG OCI_TITLE=MOTIS
+LABEL org.opencontainers.image.vendor="${OCI_VENDOR}" \
+      org.opencontainers.image.source="${OCI_SOURCE}" \
+      org.opencontainers.image.title="${OCI_TITLE}"
+
 EXPOSE 8080
 VOLUME ["/data"]
 USER motis

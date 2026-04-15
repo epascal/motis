@@ -42,6 +42,13 @@ RUN pnpm build
 # Stage 2: Production server
 FROM nginx:alpine
 
+ARG OCI_VENDOR=Flowride
+ARG OCI_SOURCE=https://github.com/flowride/motis
+ARG OCI_TITLE=MOTIS UI
+LABEL org.opencontainers.image.vendor="${OCI_VENDOR}" \
+      org.opencontainers.image.source="${OCI_SOURCE}" \
+      org.opencontainers.image.title="${OCI_TITLE}"
+
 # gettext: envsubst; jq: safe JSON for runtime-config.js
 RUN apk add --no-cache gettext jq
 
